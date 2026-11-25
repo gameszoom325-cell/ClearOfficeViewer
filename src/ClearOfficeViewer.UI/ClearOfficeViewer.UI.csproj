@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ClearOfficeViewer.UI</RootNamespace>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ClearOfficeViewer.Core\ClearOfficeViewer.Core.csproj" />
+    <ProjectReference Include="..\ClearOfficeViewer.PdfEngine\ClearOfficeViewer.PdfEngine.csproj" />
+    <ProjectReference Include="..\ClearOfficeViewer.DocumentEngine\ClearOfficeViewer.DocumentEngine.csproj" />
+    <ProjectReference Include="..\ClearOfficeViewer.PresentationEngine\ClearOfficeViewer.PresentationEngine.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>ClearOfficeViewer.App</RootNamespace>
+    <AssemblyName>ClearOfficeViewer</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>..\..\assets\icon\ClearOfficeViewer.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="..\..\assets\icon\ClearOfficeViewer.png" Link="Assets\ClearOfficeViewer.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ClearOfficeViewer.Core\ClearOfficeViewer.Core.csproj" />
+    <ProjectReference Include="..\ClearOfficeViewer.PdfEngine\ClearOfficeViewer.PdfEngine.csproj" />
+    <ProjectReference Include="..\ClearOfficeViewer.DocumentEngine\ClearOfficeViewer.DocumentEngine.csproj" />
+    <ProjectReference Include="..\ClearOfficeViewer.PresentationEngine\ClearOfficeViewer.PresentationEngine.csproj" />
+    <ProjectReference Include="..\ClearOfficeViewer.UI\ClearOfficeViewer.UI.csproj" />
+  </ItemGroup>
+</Project>
