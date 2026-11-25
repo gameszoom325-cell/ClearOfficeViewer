@@ -1,5 +1,5 @@
 #define MyAppName "ClearOffice Viewer"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "ClearOffice Contributors"
 #define MyAppURL "https://github.com/gameszoom325-cell/ClearOfficeViewer"
 #define MyAppExeName "ClearOfficeViewer.exe"

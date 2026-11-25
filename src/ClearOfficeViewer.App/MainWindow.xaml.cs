@@ -17,6 +17,7 @@ public partial class MainWindow : Window
 {
     private readonly SettingsService _settings;
     private readonly string? _initialFile;
+    private readonly TransparencyEngine _transparencyEngine;
     private IViewerControl? _activeViewer;
     private string? _activeFilePath;
     private bool _initializingControls = true;
@@ -28,6 +29,7 @@ public partial class MainWindow : Window
 
         InitializeComponent();
 
+        _transparencyEngine = new TransparencyEngine(this);
         SourceInitialized += MainWindow_SourceInitialized;
         Loaded += MainWindow_Loaded;
         StateChanged += MainWindow_StateChanged;
@@ -36,6 +38,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
     {
+        _transparencyEngine.Attach();
         ApplyBackdropAndSurface();
     }
 
@@ -66,39 +69,40 @@ public partial class MainWindow : Window
 
     private void ApplyBackdropAndSurface()
     {
-        WindowBackdropHelper.ApplyBackdrop(
-            this,
+        _transparencyEngine.Configure(
             _settings.Current.Backdrop,
             _settings.Current.Theme,
-            _settings.Current.GlassTintOpacityPercent);
+            _settings.Current.BlurIntensityPercent,
+            _settings.Current.TintStrengthPercent,
+            _settings.Current.BackgroundAdaptation);
 
-        bool isDark = WindowBackdropHelper.ResolveIsDark(_settings.Current.Theme);
-        bool isDeepGlass = _settings.Current.Backdrop is BackdropMaterial.DeepAcrylicGlass or BackdropMaterial.UltraAcrylicGlass;
+        bool isDark = TransparencyEngine.ResolveIsDark(_settings.Current.Theme);
+        bool isCompositionGlass = _settings.Current.Backdrop is BackdropMaterial.DeepAcrylic or BackdropMaterial.CustomGlass;
 
-        // Subtle translucent glass zones — never flat opaque fills — so wallpaper & windows shine through
+        // Keep WPF layers whisper-thin (zero opaque grey slabs) so Windows.UI.Composition HostBackdrop colors shine through
         if (isDark)
         {
-            CommandBarBorder.Background = new SolidColorBrush(Color.FromArgb(26, 8, 12, 18));
-            CommandBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
-            StatusBarBorder.Background = new SolidColorBrush(Color.FromArgb(36, 8, 12, 18));
+            CommandBarBorder.Background = new SolidColorBrush(Color.FromArgb(14, 8, 12, 18));
+            CommandBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(32, 255, 255, 255));
+            StatusBarBorder.Background = new SolidColorBrush(Color.FromArgb(20, 8, 12, 18));
             StatusBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255));
-            GlassSpecularRim.BorderBrush = new SolidColorBrush(Color.FromArgb(isDeepGlass ? (byte)54 : (byte)32, 255, 255, 255));
-            ContentSurfaceBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(isDeepGlass ? (byte)42 : (byte)30, 255, 255, 255));
+            GlassSpecularRim.BorderBrush = new SolidColorBrush(Color.FromArgb(isCompositionGlass ? (byte)58 : (byte)32, 255, 255, 255));
+            ContentSurfaceBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(isCompositionGlass ? (byte)40 : (byte)28, 255, 255, 255));
             ContentSurfaceBorder.Background = new SolidColorBrush(
-                Color.FromArgb(isDeepGlass ? (byte)82 : (byte)102, 10, 14, 20));
-            GlassNoiseLayer.Opacity = isDeepGlass ? 0.55 : 0.30;
+                Color.FromArgb(isCompositionGlass ? (byte)24 : (byte)70, 10, 14, 22));
+            GlassNoiseLayer.Opacity = isCompositionGlass ? 0.55 : 0.25;
         }
         else
         {
-            CommandBarBorder.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
-            CommandBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(26, 0, 0, 0));
-            StatusBarBorder.Background = new SolidColorBrush(Color.FromArgb(46, 255, 255, 255));
-            StatusBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(26, 0, 0, 0));
+            CommandBarBorder.Background = new SolidColorBrush(Color.FromArgb(22, 255, 255, 255));
+            CommandBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(24, 0, 0, 0));
+            StatusBarBorder.Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255));
+            StatusBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(24, 0, 0, 0));
             GlassSpecularRim.BorderBrush = new SolidColorBrush(Color.FromArgb(72, 255, 255, 255));
-            ContentSurfaceBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(38, 0, 0, 0));
+            ContentSurfaceBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(34, 0, 0, 0));
             ContentSurfaceBorder.Background = new SolidColorBrush(
-                Color.FromArgb(isDeepGlass ? (byte)76 : (byte)135, 255, 255, 255));
-            GlassNoiseLayer.Opacity = isDeepGlass ? 0.40 : 0.20;
+                Color.FromArgb(isCompositionGlass ? (byte)36 : (byte)110, 255, 255, 255));
+            GlassNoiseLayer.Opacity = isCompositionGlass ? 0.40 : 0.20;
         }
     }
 
@@ -107,8 +111,21 @@ public partial class MainWindow : Window
         SelectComboByTag(BackdropCombo, _settings.Current.Backdrop.ToString());
         SelectComboByTag(ThemeCombo, _settings.Current.Theme.ToString());
         SelectComboByTag(DefaultZoomCombo, _settings.Current.DefaultZoom.ToString());
-        TintOpacitySlider.Value = Math.Clamp(_settings.Current.GlassTintOpacityPercent, 20, 75);
-        TintOpacityValueText.Text = $"{(int)TintOpacitySlider.Value}%";
+
+        BlurIntensitySlider.Value = Math.Clamp(_settings.Current.BlurIntensityPercent, 0, 100);
+        BlurIntensityValueText.Text = $"{(int)BlurIntensitySlider.Value}%";
+
+        TintStrengthSlider.Value = Math.Clamp(_settings.Current.TintStrengthPercent, 0, 100);
+        TintStrengthValueText.Text = $"{(int)TintStrengthSlider.Value}%";
+
+        BackgroundAdaptationCheckBox.IsChecked = _settings.Current.BackgroundAdaptation;
+        BackgroundAdaptationCheckBox.Content = _settings.Current.BackgroundAdaptation ? "ON" : "OFF";
+
+        bool usesCustomComp = _settings.Current.Backdrop is BackdropMaterial.DeepAcrylic or BackdropMaterial.CustomGlass;
+        BlurIntensitySlider.IsEnabled = usesCustomComp;
+        TintStrengthSlider.IsEnabled = usesCustomComp;
+        BackgroundAdaptationCheckBox.IsEnabled = usesCustomComp;
+
         ShowStatusBarCheckBox.IsChecked = _settings.Current.ShowStatusBar;
     }
 
@@ -458,19 +475,43 @@ public partial class MainWindow : Window
         {
             _settings.Current.Backdrop = mat;
             _settings.Save();
+            _initializingControls = true;
+            SyncSettingsControls();
+            _initializingControls = false;
             ApplyBackdropAndSurface();
         }
     }
 
-    private void TintOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void BlurIntensitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         int val = (int)Math.Round(e.NewValue);
-        if (TintOpacityValueText != null)
-            TintOpacityValueText.Text = $"{val}%";
+        if (BlurIntensityValueText != null)
+            BlurIntensityValueText.Text = $"{val}%";
         if (_initializingControls) return;
-        _settings.Current.GlassTintOpacityPercent = val;
+        _settings.Current.BlurIntensityPercent = val;
         _settings.Save();
-        ApplyBackdropAndSurface();
+        _transparencyEngine.ChangeBlurIntensity(val);
+    }
+
+    private void TintStrengthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        int val = (int)Math.Round(e.NewValue);
+        if (TintStrengthValueText != null)
+            TintStrengthValueText.Text = $"{val}%";
+        if (_initializingControls) return;
+        _settings.Current.TintStrengthPercent = val;
+        _settings.Save();
+        _transparencyEngine.ChangeTintOpacity(val);
+    }
+
+    private void BackgroundAdaptationCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        bool enabled = BackgroundAdaptationCheckBox.IsChecked != false;
+        BackgroundAdaptationCheckBox.Content = enabled ? "ON" : "OFF";
+        if (_initializingControls) return;
+        _settings.Current.BackgroundAdaptation = enabled;
+        _settings.Save();
+        _transparencyEngine.SetBackgroundAdaptation(enabled);
     }
 
     private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -663,5 +704,6 @@ public partial class MainWindow : Window
     private void Window_Closed(object? sender, EventArgs e)
     {
         DisposeActiveViewer();
+        _transparencyEngine.Dispose();
     }
 }

@@ -2,16 +2,29 @@
 
 ## Desktop Window Manager (DWM) Backdrop Composition
 
-`WindowBackdropHelper` configures native Windows 11 translucency via `dwmapi.dll` and `user32.dll` composition APIs:
+## Desktop Composition & Transparency Engine (`TransparencyEngine`)
 
-- `SetWindowCompositionAttribute (WCA_ACCENT_POLICY = 19, ACCENT_ENABLE_ACRYLICBLURBEHIND = 4)`: Drives real-time GPU desktop/window capture, Gaussian Acrylic blur, and customizable ABGR dark/light tint (`DeepAcrylicGlass` and `UltraAcrylicGlass`) that dynamically reflects wallpaper and background window changes even when unfocused.
-- `DWMWA_USE_IMMERSIVE_DARK_MODE (20)`: Synced to `AppsUseLightTheme` (or user override).
-- `DWMWA_WINDOW_CORNER_PREFERENCE (33)` (`DWMWCP_ROUND`) & `DWMWA_BORDER_COLOR (34)`: Native rounded Windows 11 corners with a subtle glass rim border.
-- `DWMWA_SYSTEMBACKDROP_TYPE (38)`:
-  - `DWMSBT_TRANSIENTWINDOW (3)` — **Windows 11 Acrylic**
-  - `DWMSBT_TABBEDWINDOW (4)` — **Mica Alt**
-  - `DWMSBT_MAINWINDOW (2)` — **Mica**
-- `GlassNoiseBrush`: Deterministic `128x128` frozen monochrome Acrylic grain `ImageBrush` overlaid at low opacity to eliminate banding and add tactile frosted glass depth.
+`TransparencyEngine` implements a true multi-stage Windows GPU compositor pipeline:
+
+```text
+Desktop / Window behind
+        ↓
+DWM (Desktop Window Manager)
+        ↓
+Windows.UI.Composition HostBackdropBrush
+        ↓
+Direct2D GaussianBlurEffect (GPU, 0–100% Blur Intensity)
+        ↓
+Tint + Adaptive Color Veil (0–100% Tint Strength, Adaptation ON/OFF)
+        ↓
+Frosted Noise Grain & Specular Rim
+        ↓
+WPF Controls
+```
+
+- **Deep Acrylic & Custom Glass (`Windows.UI.Composition`)**: Attaches a `DesktopWindowTarget` to a borderless, click-through, `WS_EX_NOREDIRECTIONBITMAP` backdrop window kept pixel-locked directly beneath `MainWindow` via `WM_WINDOWPOSCHANGED` + `DWMWA_EXTENDED_FRAME_BOUNDS`. Uses `Compositor.CreateHostBackdropBrush()` piped through a zero-dependency COM-interoped `CLSID_D2D1GaussianBlur` effect (`NativeGaussianBlurEffect`) and live `CompositionColorBrush` tint layers.
+- **Mica & Acrylic (`DWMWA_SYSTEMBACKDROP_TYPE`)**: Uses native Windows 11 `DWMSBT_MAINWINDOW (2)` (`Mica`) and `DWMSBT_TRANSIENTWINDOW (3)` (`Acrylic`).
+- **Dynamic System Integration**: Listens to `SystemEvents.UserPreferenceChanged`, `WM_THEMECHANGED`, and `WM_DWMCOMPOSITIONCHANGED` via `HandleBackdropChanges()`, and exposes `EnableAcrylic()`, `UpdateBackdrop()`, `ChangeTintOpacity()`, `ChangeBlurIntensity()`, `SetBackgroundAdaptation()`, and `DetectWindowsTheme()`.
 - `DwmExtendFrameIntoClientArea(-1)` + `HwndSource.CompositionTarget.BackgroundColor = Colors.Transparent` + `WindowChrome` (`GlassFrameThickness = -1`) allow DWM to composite desktop wallpaper and background applications behind the shell without fake opacity overlays.
 
 ## Shell File Associations & "Open With"

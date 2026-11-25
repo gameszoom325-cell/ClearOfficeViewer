@@ -56,7 +56,7 @@ public partial class App : Application
             _ => ThemeMode.System
         };
 
-        bool isDark = ClearOfficeViewer.UI.Interop.WindowBackdropHelper.ResolveIsDark(preference);
+        bool isDark = ClearOfficeViewer.UI.Interop.TransparencyEngine.ResolveIsDark(preference);
         Resources["AppForegroundBrush"] = new System.Windows.Media.SolidColorBrush(
             isDark ? System.Windows.Media.Color.FromRgb(245, 247, 250) : System.Windows.Media.Color.FromRgb(20, 24, 31));
         Resources["AppMutedForegroundBrush"] = new System.Windows.Media.SolidColorBrush(

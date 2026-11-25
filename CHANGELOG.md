@@ -2,6 +2,17 @@
 
 All notable changes to ClearOffice Viewer are documented in this file.
 
+## [1.1.0] - 2026-11-25
+
+### Added
+- **True Dynamic Compositor Transparency (`TransparencyEngine`)**: Replaced static backdrop overrides with a real-time `Windows.UI.Composition` pipeline (`Compositor.CreateHostBackdropBrush()` -> Direct2D `CLSID_D2D1GaussianBlur` via `IGraphicsEffectD2D1Interop` -> adaptive tint & noise layer -> WPF controls) hosted on a Z-order-synchronized `WS_EX_NOREDIRECTIONBITMAP` composition target.
+- **Adaptive Background Color Bleeding**: Desktop wallpaper tones and underlying open application colors dynamically tint and illuminate the frosted glass in real time, even when moving the window or when unfocused.
+- **Appearance Controls in Settings**:
+  - **Material**: `Deep Acrylic` (Default), `Custom Glass`, `Acrylic`, and `Mica`.
+  - **Blur intensity (`0–100%`)**: Live GPU Gaussian blur standard deviation control.
+  - **Tint strength (`0–100%`)**: Live glass tint opacity control.
+  - **Background adaptation (`ON/OFF`)**: Toggle between vivid adaptive wallpaper/window bleed and uniform neutral frosting.
+
 ## [1.0.1] - 2026-11-25
 
 ### Changed

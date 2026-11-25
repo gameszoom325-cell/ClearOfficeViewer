@@ -114,11 +114,14 @@ ClearOffice Viewer follows four strict engineering and visual principles:
 ### Application Shell & Native Windows 11 Materials
 
 - **Custom Borderless Windows 11 Chrome**: Uses `System.Windows.Shell.WindowChrome` (`CaptionHeight=38`, `GlassFrameThickness=-1`, `ResizeBorderThickness=6`) with native-styled Minimize, Maximize/Restore, and Close caption buttons.
-- **Five Real DWM Compositor Backdrop Modes**: Switch instantaneously in **Settings** between **Deep Acrylic Glass** (`ACCENT_ENABLE_ACRYLICBLURBEHIND` with rich dark-tinted GPU blur), **Ultra Translucent Glass**, **Windows 11 Acrylic** (`DWMSBT_TRANSIENTWINDOW`), **Mica Alt**, and **Mica**, plus a live **Glass tint density** (`20%`–`75%`) slider applied directly on the DWM GPU compositor without restarting the application.
-- **Three-Layer Glass Architecture**:
-  1. **Background Layer**: DWM captures desktop wallpaper and open windows behind the window on the GPU, applying continuous Gaussian Acrylic blur and dark tint even when unfocused or dragged.
-  2. **Glass Layer**: `GlassNoiseBrush` overlays a frozen `128x128` monochrome Acrylic grain texture (`TileMode.Tile`) alongside a `1px` specular edge rim (`GlassSpecularRim`) and subtle translucent surface zones.
-  3. **Content Layer**: High-contrast `#F5F7FA` / `#C0C9D4` typography and crisp document paper/slide viewports ensure immediate legibility over colorful or bright desktop backgrounds.
+- **Four Real Compositor Backdrop Materials (`TransparencyEngine`)**: Switch instantaneously in **Settings** between **Deep Acrylic** (Default), **Custom Glass**, **Acrylic**, and **Mica**.
+- **True Dynamic Desktop & Window Adaptation**:
+  ```text
+  Desktop / Window behind -> DWM -> HostBackdropBrush -> GPU GaussianBlur -> Tint + Noise -> WPF Controls
+  ```
+  1. **Background Capture (`Windows.UI.Composition.HostBackdropBrush`)**: Samples the live desktop wallpaper and open application windows behind ClearOffice Viewer on the GPU. If your wallpaper is blue or another window is behind ClearOffice Viewer, its colors bleed naturally through the glass and update automatically when moving the window or changing backgrounds.
+  2. **Configurable GPU Blur & Tint**: Adjust **Blur intensity (`0–100%`)**, **Tint strength (`0–100%`)**, and **Background adaptation (`ON/OFF`)** live in Settings.
+  3. **Frosted Noise & Specular Rim**: `GlassNoiseBrush` overlays a frozen `128x128` monochrome Acrylic grain texture alongside a `1px` specular rim (`GlassSpecularRim`), with whisper-thin WPF surface layers so nothing turns into a flat grey overlay.
 - **System, Light, and Dark Theme Synchronization**: Automatically reads Windows `AppsUseLightTheme` (`HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`) when set to **Use system setting**, or lets users force **Light** or **Dark** mode. Both `DWMWA_USE_IMMERSIVE_DARK_MODE` and WPF theme resource brushes update in lockstep.
 - **Minimal Navigation Rail**: A clean `212px` left sidebar provides direct access to **Home**, **Recent files**, **Favorites**, and **Settings**, plus a compact active-document indicator card when a file is open so you can return to navigation and jump back or close the active document at any time.
 - **Contextual Command Bar**: The top command bar exposes a **File** menu (`Open...`, `Recent Files` submenu, `Print...`, `Close Document`, `Exit`), quick **Open**, **Recent**, and **Settings** buttons, and contextual document actions (`Zoom Out`, current zoom percentage, `Zoom In`, `Fit Width`, `Fit Page`, `Find`, `Print`, `Favorite`, and `Present` for slides).
@@ -411,7 +414,7 @@ ClearOfficeViewer/
 `ClearOfficeViewer.Core` has zero UI dependencies and defines shared models and system services:
 
 - **`Models/SupportedFileKind.cs` & `FileFormatDetector`**: Maps `.pdf`, `.doc`, `.docx`, `.ppt`, `.pptx`, `.html`, and `.htm` to `SupportedFileKind` values, builds the Win32 `OpenFileDialog` filter, provides short UI badges (`PDF`, `DOCX`, `PPTX`, `HTML`), and inspects file header magic bytes (`%PDF-`) so misnamed PDF files still route accurately.
-- **`Models/AppSettings.cs` & `RecentFileEntry.cs`**: Serializable configuration models for `BackdropMaterial` (`DeepAcrylicGlass`, `UltraAcrylicGlass`, `WindowsAcrylic`, `MicaAlt`, `Mica`), `GlassTintOpacityPercent` (`20`–`75`), `AppThemePreference` (`System`, `Light`, `Dark`), `DefaultZoomBehavior` (`FitWidth`, `FitPage`, `ActualSize`), status bar visibility, recent file history, and pinned favorites.
+- **`Models/AppSettings.cs` & `RecentFileEntry.cs`**: Serializable configuration models for `BackdropMaterial` (`DeepAcrylic`, `Acrylic`, `Mica`, `CustomGlass`), `BlurIntensityPercent` (`0`–`100`), `TintStrengthPercent` (`0`–`100`), `BackgroundAdaptation` (`true`/`false`), `AppThemePreference` (`System`, `Light`, `Dark`), `DefaultZoomBehavior` (`FitWidth`, `FitPage`, `ActualSize`), status bar visibility, recent file history, and pinned favorites.
 - **`Services/SettingsService.cs`**: Thread-safe JSON persistence service writing to `%LOCALAPPDATA%\ClearOfficeViewer\settings.json` via temp-file swap.
 - **`Services/AppLogger.cs`**: Thread-safe rolling daily logger writing UTF-8 diagnostics to `%LOCALAPPDATA%\ClearOfficeViewer\logs\app-YYYYMMDD.log` with an in-memory ring buffer.
 - **`Services/FileAssociationService.cs`**: Manages current-user (`HKCU`) Windows Explorer **Open With** entries, ProgIDs, `Capabilities`, and `RegisteredApplications`, and triggers `SHChangeNotify(SHCNE_ASSOCCHANGED, ...)` so Windows refreshes associations immediately.
@@ -471,7 +474,7 @@ The Document Engine separates format parsing from WPF visual construction using 
 `ClearOfficeViewer.UI` implements the `IViewerControl` contract across four dedicated controls (`PdfViewerControl`, `DocumentViewerControl`, `PresentationViewerControl`, and `HtmlViewerControl`), plus `SlideRenderer`, `PresentationFullscreenWindow`, and `WindowBackdropHelper`:
 
 - **`IViewerControl`**: Exposes `StatusPrimaryText`, `ZoomPercent`, `SupportsFind`, `SupportsPrint`, `SupportsPresentation`, `StatusChanged`, and uniform operations (`ZoomIn`, `ZoomOut`, `FitWidth`, `FitPage`, `SetZoomPercent`, `ShowFind`, `Print`, `StartPresentation`, `Dispose`). This lets `MainWindow` switch seamlessly between PDFs, Word documents, PowerPoint decks, and HTML pages without coupling shell commands to engine types.
-- **`WindowBackdropHelper` & `GlassNoiseBrush`**: Wraps Win32 DWM attributes `DWMWA_USE_IMMERSIVE_DARK_MODE (20)`, `DWMWA_WINDOW_CORNER_PREFERENCE (33)`, `DWMWA_BORDER_COLOR (34)`, `DWMWA_SYSTEMBACKDROP_TYPE (38)`, and `SetWindowCompositionAttribute (WCA_ACCENT_POLICY = 19, ACCENT_ENABLE_ACRYLICBLURBEHIND = 4)`. For `DeepAcrylicGlass` and `UltraAcrylicGlass`, `DWMWA_SYSTEMBACKDROP_TYPE` is cleared to `DWMSBT_NONE`, the HWND client frame is extended via `DwmExtendFrameIntoClientArea(-1)`, `HwndSource.CompositionTarget.BackgroundColor` is cleared to `Colors.Transparent`, and DWM blends the live blurred desktop/windows behind ClearOffice Viewer with the user's `GlassTintOpacityPercent` ABGR tint while `GlassNoiseBrush` adds subtle monochrome frosted grain.
+- **`TransparencyEngine` & `GlassNoiseBrush`**: Drives the real Windows compositor pipeline (`EnableAcrylic()`, `UpdateBackdrop()`, `ChangeTintOpacity()`, `ChangeBlurIntensity()`, `SetBackgroundAdaptation()`, `DetectWindowsTheme()`, `HandleBackdropChanges()`). For `DeepAcrylic` and `CustomGlass`, `TransparencyEngine` creates a synchronized, click-through, `WS_EX_NOREDIRECTIONBITMAP` backdrop HWND kept pixel-locked directly beneath `MainWindow` via `WM_WINDOWPOSCHANGED` and `DWMWA_EXTENDED_FRAME_BOUNDS`. On that target, `Windows.UI.Composition.Compositor` pipes `CreateHostBackdropBrush()` through a zero-dependency COM-interoped Direct2D `CLSID_D2D1GaussianBlur` (`NativeGaussianBlurEffect`, `0–48px` std-dev) and adaptive `CompositionColorBrush` tint layers, while `GlassNoiseBrush` provides subtle monochrome frosted grain on top. For `Mica` and `Acrylic`, `TransparencyEngine` applies `DWMWA_SYSTEMBACKDROP_TYPE` (`DWMSBT_MAINWINDOW` / `DWMSBT_TRANSIENTWINDOW`) directly via `dwmapi.dll`.
 
 ### Application Shell (`ClearOfficeViewer.App`)
 
@@ -526,9 +529,11 @@ User preferences, recent document history, and favorites are stored as human-rea
 
 ```json
 {
-  "Backdrop": "DeepAcrylicGlass",
+  "Backdrop": "DeepAcrylic",
   "Theme": "Dark",
-  "GlassTintOpacityPercent": 50,
+  "BlurIntensityPercent": 68,
+  "TintStrengthPercent": 36,
+  "BackgroundAdaptation": true,
   "DefaultZoom": "FitWidth",
   "MaxRecentFiles": 30,
   "ShowStatusBar": true,
@@ -550,9 +555,11 @@ User preferences, recent document history, and favorites are stored as human-rea
 
 | Field | Allowed Values | Default | Description |
 | --- | --- | --- | --- |
-| `Backdrop` | `DeepAcrylicGlass`, `UltraAcrylicGlass`, `WindowsAcrylic`, `MicaAlt`, `Mica` | `DeepAcrylicGlass` | Windows 11 DWM / Composition backdrop material |
+| `Backdrop` | `DeepAcrylic`, `CustomGlass`, `Acrylic`, `Mica` | `DeepAcrylic` | Windows Composition / DWM backdrop material |
 | `Theme` | `System`, `Light`, `Dark` | `Dark` | Controls WPF Fluent theme and DWM dark mode attribute |
-| `GlassTintOpacityPercent` | `20`–`75` (clamped) | `50` | Dark/light tint opacity over the live blurred backdrop |
+| `BlurIntensityPercent` | `0`–`100` | `68` | GPU Gaussian blur intensity over desktop/windows behind |
+| `TintStrengthPercent` | `0`–`100` | `36` | Glass tint opacity over the blurred backdrop |
+| `BackgroundAdaptation` | `true`, `false` | `true` | Allows wallpaper and underlying window colors to tint the glass |
 | `DefaultZoom` | `FitWidth`, `FitPage`, `ActualSize` | `FitWidth` | Initial zoom policy applied when opening a new document |
 | `MaxRecentFiles` | `5`–`100` (clamped) | `30` | Maximum number of recent document entries retained |
 | `ShowStatusBar` | `true`, `false` | `true` | Toggles visibility of the bottom 26px status strip |

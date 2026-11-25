@@ -2,11 +2,10 @@ namespace ClearOfficeViewer.Core.Models;
 
 public enum BackdropMaterial
 {
-    DeepAcrylicGlass = 0,
-    UltraAcrylicGlass = 1,
-    WindowsAcrylic = 2,
-    MicaAlt = 3,
-    Mica = 4
+    DeepAcrylic = 0,
+    Acrylic = 1,
+    Mica = 2,
+    CustomGlass = 3
 }
 
 public enum AppThemePreference
@@ -25,9 +24,11 @@ public enum DefaultZoomBehavior
 
 public sealed class AppSettings
 {
-    public BackdropMaterial Backdrop { get; set; } = BackdropMaterial.DeepAcrylicGlass;
+    public BackdropMaterial Backdrop { get; set; } = BackdropMaterial.DeepAcrylic;
     public AppThemePreference Theme { get; set; } = AppThemePreference.Dark;
-    public int GlassTintOpacityPercent { get; set; } = 50;
+    public int BlurIntensityPercent { get; set; } = 68;
+    public int TintStrengthPercent { get; set; } = 36;
+    public bool BackgroundAdaptation { get; set; } = true;
     public DefaultZoomBehavior DefaultZoom { get; set; } = DefaultZoomBehavior.FitWidth;
     public int MaxRecentFiles { get; set; } = 30;
     public bool ShowStatusBar { get; set; } = true;

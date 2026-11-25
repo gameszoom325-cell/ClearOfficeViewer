@@ -18,8 +18,10 @@ public class SettingsAndAssociationsTests
         try
         {
             var svc = new SettingsService(settingsPath);
-            svc.Current.Backdrop = BackdropMaterial.UltraAcrylicGlass;
-            svc.Current.GlassTintOpacityPercent = 32;
+            svc.Current.Backdrop = BackdropMaterial.CustomGlass;
+            svc.Current.BlurIntensityPercent = 80;
+            svc.Current.TintStrengthPercent = 28;
+            svc.Current.BackgroundAdaptation = true;
             svc.RecordFileOpened(sampleFile);
             bool fav = svc.ToggleFavorite(sampleFile);
 
@@ -28,8 +30,10 @@ public class SettingsAndAssociationsTests
             Assert.True(svc.Current.RecentFiles[0].IsFavorite);
 
             var reloaded = new SettingsService(settingsPath);
-            Assert.Equal(BackdropMaterial.UltraAcrylicGlass, reloaded.Current.Backdrop);
-            Assert.Equal(32, reloaded.Current.GlassTintOpacityPercent);
+            Assert.Equal(BackdropMaterial.CustomGlass, reloaded.Current.Backdrop);
+            Assert.Equal(80, reloaded.Current.BlurIntensityPercent);
+            Assert.Equal(28, reloaded.Current.TintStrengthPercent);
+            Assert.True(reloaded.Current.BackgroundAdaptation);
             Assert.Single(reloaded.GetFavorites());
             Assert.True(reloaded.IsFavorite(sampleFile));
         }
