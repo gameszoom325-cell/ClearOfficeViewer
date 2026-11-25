@@ -6,9 +6,9 @@
     <LangVersion>13.0</LangVersion>
     <Platforms>x64;AnyCPU</Platforms>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.1</Version>
+    <AssemblyVersion>1.0.1.0</AssemblyVersion>
+    <FileVersion>1.0.1.0</FileVersion>
     <Company>ClearOffice Contributors</Company>
     <Product>ClearOffice Viewer</Product>
     <Copyright>Copyright (c) 2026 ClearOffice Contributors. MIT License.</Copyright>

@@ -31,6 +31,18 @@
       <RowDefinition Height="26" />
     </Grid.RowDefinitions>
 
+    <!-- Glass Layer: Subtle GPU-cached Acrylic noise grain & specular edge highlight -->
+    <Border x:Name="GlassNoiseLayer"
+            Grid.RowSpan="4"
+            IsHitTestVisible="False"
+            Opacity="0.45" />
+    <Border x:Name="GlassSpecularRim"
+            Grid.RowSpan="4"
+            IsHitTestVisible="False"
+            CornerRadius="8"
+            BorderThickness="1"
+            BorderBrush="#2EFFFFFF" />
+
     <!-- 1. Native-style Titlebar -->
     <Grid Grid.Row="0">
       <Grid.ColumnDefinitions>
@@ -486,26 +498,44 @@
                   <Grid Margin="16,12">
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="200" />
+                      <ColumnDefinition Width="228" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Margin="0,0,16,0">
                       <TextBlock Text="Window translucency material" FontSize="13" FontWeight="SemiBold" />
-                      <TextBlock Text="Uses native Windows 11 Desktop Window Manager backdrop composition" FontSize="11.5" Opacity="0.68" TextWrapping="Wrap" />
+                      <TextBlock Text="Uses native Windows 11 Desktop Window Manager backdrop composition" FontSize="11.5" Opacity="0.72" TextWrapping="Wrap" />
                     </StackPanel>
                     <ComboBox x:Name="BackdropCombo" Grid.Column="1" VerticalAlignment="Center" SelectionChanged="BackdropCombo_SelectionChanged">
-                      <ComboBoxItem Content="Mica (Default)" Tag="Mica" />
+                      <ComboBoxItem Content="Deep Acrylic Glass" Tag="DeepAcrylicGlass" />
+                      <ComboBoxItem Content="Ultra Translucent Glass" Tag="UltraAcrylicGlass" />
+                      <ComboBoxItem Content="Windows 11 Acrylic" Tag="WindowsAcrylic" />
                       <ComboBoxItem Content="Mica Alt" Tag="MicaAlt" />
-                      <ComboBoxItem Content="Acrylic" Tag="Acrylic" />
-                      <ComboBoxItem Content="Solid" Tag="Solid" />
+                      <ComboBoxItem Content="Mica" Tag="Mica" />
                     </ComboBox>
                   </Grid>
 
-                  <Border Height="1" Background="#14808080" />
+                  <Border Height="1" Background="#1EFFFFFF" />
 
                   <Grid Margin="16,12">
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="200" />
+                      <ColumnDefinition Width="228" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,16,0">
+                      <TextBlock Text="Glass tint density" FontSize="13" FontWeight="SemiBold" />
+                      <TextBlock Text="Adjusts the dark tint opacity over the live blurred desktop backdrop" FontSize="11.5" Opacity="0.72" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <DockPanel Grid.Column="1" VerticalAlignment="Center">
+                      <TextBlock x:Name="TintOpacityValueText" DockPanel.Dock="Right" Width="38" TextAlignment="Right" VerticalAlignment="Center" FontSize="12" Text="50%" />
+                      <Slider x:Name="TintOpacitySlider" Minimum="20" Maximum="75" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="TintOpacitySlider_ValueChanged" />
+                    </DockPanel>
+                  </Grid>
+
+                  <Border Height="1" Background="#1EFFFFFF" />
+
+                  <Grid Margin="16,12">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="228" />
                     </Grid.ColumnDefinitions>
                     <StackPanel>
                       <TextBlock Text="Application theme" FontSize="13" FontWeight="SemiBold" />
@@ -576,7 +606,7 @@
                     <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
                   <StackPanel>
-                    <TextBlock Text="ClearOffice Viewer 1.0.0" FontSize="13" FontWeight="SemiBold" />
+                    <TextBlock Text="ClearOffice Viewer 1.0.1" FontSize="13" FontWeight="SemiBold" />
                     <TextBlock Text="Lightweight native Windows 11 office document viewer · MIT License" FontSize="11.5" Opacity="0.68" />
                   </StackPanel>
                   <Button Grid.Column="1" Content="Open Logs Folder" Padding="12,6" VerticalAlignment="Center" Click="OpenLogsFolder_Click" />

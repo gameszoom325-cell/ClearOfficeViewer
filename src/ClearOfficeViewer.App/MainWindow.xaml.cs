@@ -31,6 +31,7 @@ public partial class MainWindow : Window
         SourceInitialized += MainWindow_SourceInitialized;
         Loaded += MainWindow_Loaded;
         StateChanged += MainWindow_StateChanged;
+        GlassNoiseLayer.Background = GlassNoiseBrush.Instance;
     }
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
@@ -65,21 +66,39 @@ public partial class MainWindow : Window
 
     private void ApplyBackdropAndSurface()
     {
-        WindowBackdropHelper.ApplyBackdrop(this, _settings.Current.Backdrop, _settings.Current.Theme);
-        bool isDark = WindowBackdropHelper.ResolveIsDark(_settings.Current.Theme);
+        WindowBackdropHelper.ApplyBackdrop(
+            this,
+            _settings.Current.Backdrop,
+            _settings.Current.Theme,
+            _settings.Current.GlassTintOpacityPercent);
 
-        // Native translucent surface layer so Mica/Acrylic shows through while keeping text legible
-        if (_settings.Current.Backdrop == BackdropMaterial.Solid)
+        bool isDark = WindowBackdropHelper.ResolveIsDark(_settings.Current.Theme);
+        bool isDeepGlass = _settings.Current.Backdrop is BackdropMaterial.DeepAcrylicGlass or BackdropMaterial.UltraAcrylicGlass;
+
+        // Subtle translucent glass zones — never flat opaque fills — so wallpaper & windows shine through
+        if (isDark)
         {
-            ContentSurfaceBorder.Background = isDark
-                ? new SolidColorBrush(Color.FromRgb(40, 40, 40))
-                : new SolidColorBrush(Color.FromRgb(250, 250, 250));
+            CommandBarBorder.Background = new SolidColorBrush(Color.FromArgb(26, 8, 12, 18));
+            CommandBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
+            StatusBarBorder.Background = new SolidColorBrush(Color.FromArgb(36, 8, 12, 18));
+            StatusBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255));
+            GlassSpecularRim.BorderBrush = new SolidColorBrush(Color.FromArgb(isDeepGlass ? (byte)54 : (byte)32, 255, 255, 255));
+            ContentSurfaceBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(isDeepGlass ? (byte)42 : (byte)30, 255, 255, 255));
+            ContentSurfaceBorder.Background = new SolidColorBrush(
+                Color.FromArgb(isDeepGlass ? (byte)82 : (byte)102, 10, 14, 20));
+            GlassNoiseLayer.Opacity = isDeepGlass ? 0.55 : 0.30;
         }
         else
         {
-            ContentSurfaceBorder.Background = isDark
-                ? new SolidColorBrush(Color.FromArgb(115, 32, 32, 32))
-                : new SolidColorBrush(Color.FromArgb(145, 255, 255, 255));
+            CommandBarBorder.Background = new SolidColorBrush(Color.FromArgb(40, 255, 255, 255));
+            CommandBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(26, 0, 0, 0));
+            StatusBarBorder.Background = new SolidColorBrush(Color.FromArgb(46, 255, 255, 255));
+            StatusBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(26, 0, 0, 0));
+            GlassSpecularRim.BorderBrush = new SolidColorBrush(Color.FromArgb(72, 255, 255, 255));
+            ContentSurfaceBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(38, 0, 0, 0));
+            ContentSurfaceBorder.Background = new SolidColorBrush(
+                Color.FromArgb(isDeepGlass ? (byte)76 : (byte)135, 255, 255, 255));
+            GlassNoiseLayer.Opacity = isDeepGlass ? 0.40 : 0.20;
         }
     }
 
@@ -88,6 +107,8 @@ public partial class MainWindow : Window
         SelectComboByTag(BackdropCombo, _settings.Current.Backdrop.ToString());
         SelectComboByTag(ThemeCombo, _settings.Current.Theme.ToString());
         SelectComboByTag(DefaultZoomCombo, _settings.Current.DefaultZoom.ToString());
+        TintOpacitySlider.Value = Math.Clamp(_settings.Current.GlassTintOpacityPercent, 20, 75);
+        TintOpacityValueText.Text = $"{(int)TintOpacitySlider.Value}%";
         ShowStatusBarCheckBox.IsChecked = _settings.Current.ShowStatusBar;
     }
 
@@ -439,6 +460,17 @@ public partial class MainWindow : Window
             _settings.Save();
             ApplyBackdropAndSurface();
         }
+    }
+
+    private void TintOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        int val = (int)Math.Round(e.NewValue);
+        if (TintOpacityValueText != null)
+            TintOpacityValueText.Text = $"{val}%";
+        if (_initializingControls) return;
+        _settings.Current.GlassTintOpacityPercent = val;
+        _settings.Save();
+        ApplyBackdropAndSurface();
     }
 
     private void ThemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)

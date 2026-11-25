@@ -2,6 +2,13 @@
 
 All notable changes to ClearOffice Viewer are documented in this file.
 
+## [1.0.1] - 2026-11-25
+
+### Changed
+- Upgraded default window backdrop to custom **Deep Acrylic Glass** powered by Win32 DWM `SetWindowCompositionAttribute` (`ACCENT_ENABLE_ACRYLICBLURBEHIND`), `DWMWA_WINDOW_CORNER_PREFERENCE`, `DWMWA_BORDER_COLOR`, and a GPU-cached tiled monochrome Acrylic noise grain layer (`GlassNoiseBrush`) with specular glass edge highlighting.
+- Added **Ultra Translucent Glass** mode and a live **Glass tint density** (`20%`–`75%`) slider in Settings for real-time adjustment of the dark-tinted blur layer over desktop wallpapers and background windows.
+- Tuned translucent content surface contrast and Dark glass theme defaults for optimal legibility over bright or colorful desktop backgrounds.
+
 ## [1.0.0] - 2026-11-25
 
 ### Added

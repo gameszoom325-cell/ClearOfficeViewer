@@ -1,12 +1,12 @@
 ﻿<Application x:Class="ClearOfficeViewer.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             ThemeMode="System">
+             ThemeMode="Dark">
   <Application.Resources>
     <ResourceDictionary>
-      <SolidColorBrush x:Key="BrandAccentBrush" Color="#0F6CBD" />
-      <SolidColorBrush x:Key="AppForegroundBrush" Color="#1A1A1A" />
-      <SolidColorBrush x:Key="AppMutedForegroundBrush" Color="#5C5C5C" />
+      <SolidColorBrush x:Key="BrandAccentBrush" Color="#1F7AE0" />
+      <SolidColorBrush x:Key="AppForegroundBrush" Color="#F5F7FA" />
+      <SolidColorBrush x:Key="AppMutedForegroundBrush" Color="#C0C9D4" />
 
       <Style x:Key="ToolbarButtonStyle" TargetType="Button">
         <Setter Property="Foreground" Value="{DynamicResource AppForegroundBrush}" />

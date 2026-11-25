@@ -58,8 +58,10 @@ public partial class App : Application
 
         bool isDark = ClearOfficeViewer.UI.Interop.WindowBackdropHelper.ResolveIsDark(preference);
         Resources["AppForegroundBrush"] = new System.Windows.Media.SolidColorBrush(
-            isDark ? System.Windows.Media.Color.FromRgb(243, 243, 243) : System.Windows.Media.Color.FromRgb(26, 26, 26));
+            isDark ? System.Windows.Media.Color.FromRgb(245, 247, 250) : System.Windows.Media.Color.FromRgb(20, 24, 31));
         Resources["AppMutedForegroundBrush"] = new System.Windows.Media.SolidColorBrush(
-            isDark ? System.Windows.Media.Color.FromRgb(176, 176, 176) : System.Windows.Media.Color.FromRgb(92, 92, 92));
+            isDark ? System.Windows.Media.Color.FromRgb(192, 201, 212) : System.Windows.Media.Color.FromRgb(74, 85, 104));
+        Resources["BrandAccentBrush"] = new System.Windows.Media.SolidColorBrush(
+            isDark ? System.Windows.Media.Color.FromRgb(56, 152, 255) : System.Windows.Media.Color.FromRgb(15, 108, 189));
     }
 }
