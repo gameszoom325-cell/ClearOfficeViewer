@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ClearOfficeViewer.PdfEngine</RootNamespace>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ClearOfficeViewer.Core\ClearOfficeViewer.Core.csproj" />
+  </ItemGroup>
+</Project>
