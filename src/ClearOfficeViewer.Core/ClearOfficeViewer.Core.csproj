@@ -1,0 +1,5 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ClearOfficeViewer.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

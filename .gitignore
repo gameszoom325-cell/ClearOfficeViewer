@@ -1,0 +1,17 @@
+.vs/
+.vscode/
+bin/
+obj/
+out/
+dist/
+publish/
+TestResults/
+*.user
+*.suo
+*.cache
+*.log
+*.tmp
+installer/Output/
+!assets/screenshots/*.png
+!assets/icon/*.ico
+!assets/icon/*.png
