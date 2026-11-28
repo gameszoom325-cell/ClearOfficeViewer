@@ -14,6 +14,7 @@ public partial class PresentationViewerControl : UserControl, IViewerControl
     private DefaultZoomBehavior? _pendingDefaultZoom;
     private int _currentIndex;
     private double _zoom = 1.0;
+    private bool _disposed;
 
     public event EventHandler? StatusChanged;
 
@@ -29,23 +30,28 @@ public partial class PresentationViewerControl : UserControl, IViewerControl
     public PresentationViewerControl()
     {
         InitializeComponent();
-        SizeChanged += (_, _) =>
-        {
-            if (_pendingDefaultZoom.HasValue && SlideScrollViewer.ActualWidth > 120)
-            {
-                var dz = _pendingDefaultZoom.Value;
-                _pendingDefaultZoom = null;
-                if (dz == DefaultZoomBehavior.ActualSize) SetZoomPercent(100);
-                else FitPage();
-                return;
-            }
-            ApplyStageSize();
-        };
+        SizeChanged += OnControlSizeChanged;
     }
 
-    public async Task LoadAsync(string filePath, DefaultZoomBehavior defaultZoom)
+    private void OnControlSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        var pres = await Task.Run(() => PresentationLoader.Load(filePath));
+        if (_disposed) return;
+        if (_pendingDefaultZoom.HasValue && SlideScrollViewer.ActualWidth > 120)
+        {
+            var dz = _pendingDefaultZoom.Value;
+            _pendingDefaultZoom = null;
+            if (dz == DefaultZoomBehavior.ActualSize) SetZoomPercent(100);
+            else FitPage();
+            return;
+        }
+        ApplyStageSize();
+    }
+
+    public async Task LoadAsync(string filePath, DefaultZoomBehavior defaultZoom, CancellationToken ct = default)
+    {
+        var pres = await Task.Run(() => PresentationLoader.Load(filePath), ct);
+        if (_disposed || ct.IsCancellationRequested)
+            return;
         _presentation = pres;
         _currentIndex = 0;
 
@@ -254,9 +260,13 @@ public partial class PresentationViewerControl : UserControl, IViewerControl
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        SizeChanged -= OnControlSizeChanged;
         _presentation = null;
         SlideThumbList.Items.Clear();
         SlideStageViewbox.Child = null;
+        NotesTextBlock.Text = string.Empty;
     }
 
     private sealed class PresentationPrintPaginator(ParsedPresentation pres, Size pageSize) : DocumentPaginator

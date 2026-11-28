@@ -50,4 +50,39 @@ public class SettingsAndAssociationsTests
         Assert.Equal("\"C:\\Program Files\\ClearOffice Viewer\\ClearOfficeViewer.exe\" \"%1\"", cmd);
         Assert.Equal(7, FileAssociationService.SupportedAssociations.Count);
     }
+
+    [Fact]
+    public void SettingsService_FallsBackSafelyOnLegacyOrUnknownBackdropNames()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), $"cov_legacy_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        string settingsPath = Path.Combine(tempDir, "settings.json");
+
+        try
+        {
+            File.WriteAllText(settingsPath, """
+            {
+              "Backdrop": "UnknownLegacyMaterial",
+              "FavoritePaths": [ "C:\\temp\\report.pdf" ],
+              "RecentFiles": [
+                {
+                  "FilePath": "C:\\temp\\report.pdf",
+                  "FileName": "report.pdf",
+                  "FileKind": "Pdf",
+                  "IsFavorite": true
+                }
+              ]
+            }
+            """);
+
+            var svc = new SettingsService(settingsPath);
+            Assert.Equal(BackdropMaterial.DeepAcrylic, svc.Current.Backdrop);
+            Assert.Single(svc.Current.RecentFiles);
+            Assert.True(svc.Current.RecentFiles[0].IsFavorite);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, recursive: true);
+        }
+    }
 }

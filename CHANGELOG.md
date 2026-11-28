@@ -2,6 +2,17 @@
 
 All notable changes to ClearOffice Viewer are documented in this file.
 
+## [1.1.1] - 2026-11-28
+
+### Fixed
+- **Bottom-Left Active Document Card (`ActiveDocSidebarBox`)**: Replaced the cramped/truncated layout and misaligned `Close Document` button with a responsive 2-column header row (format badge + dynamically trimming filename that returns to the active document on click) and a full-width, properly spaced `Close Document` action button with explicit hover/pressed states (`SidebarHeaderButtonStyle`, `SidebarActionButtonStyle`).
+- **Mica / Acrylic Translucency & Surface Legibility**: Fixed `{DynamicResource BrandAccentBrush}` theme responsiveness on the active document badge/indicator, synchronized `GlassSpecularRim` corner radius on maximize/restore, and ensured sidebar cards/command bar/text remain crisp and readable over dynamic desktop wallpaper & background window blur.
+- **PDF Rendering, Resize, Listener & Resource Leak Fixes**:
+  - Replaced aggressive per-scroll `CancellationTokenSource` churn in `PdfViewerControl` with a coalesced render loop (`RunRenderLoopAsync`) that eliminates scroll flicker and avoids `OperationCanceledException`/disposal leaks.
+  - Guarded `VisualTreeHelper.GetDpi` when unloaded, wrapped clipboard copy errors, unsubscribed `SizeChanged` / WebView2 handlers (`ZoomFactorChanged`, `DocumentTitleChanged`) on `Dispose`, and cancelled in-flight `OpenFileAsync` loads cleanly when clicking `Close Document` or closing the window (`_openFileCts`).
+  - Disposed native `Windows.UI.Composition` brushes, `GaussianBlurEffect` factories, `HostBackdropBrush`, and Direct2D COM bridge pointers cleanly inside `TransparencyEngine`.
+  - Added `ResilientBackdropConverter` in `SettingsService` so legacy or unknown `Backdrop` enum strings fall back safely without discarding recent files or favorites.
+
 ## [1.1.0] - 2026-11-25
 
 ### Added

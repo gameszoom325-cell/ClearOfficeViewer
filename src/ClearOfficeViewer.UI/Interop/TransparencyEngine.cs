@@ -58,12 +58,15 @@ public sealed partial class TransparencyEngine : IDisposable
     private static IntPtr _dispatcherQueueController;
     private Compositor? _compositor;
     private DesktopWindowTarget? _desktopTarget;
+    private CompositionEffectFactory? _blurFactory;
     private CompositionEffectBrush? _blurBrush;
+    private CompositionBrush? _hostBackdropBrush;
     private CompositionColorBrush? _tintBrush;
     private CompositionColorBrush? _adaptationVeilBrush;
     private SpriteVisual? _blurVisual;
     private SpriteVisual? _tintVisual;
     private SpriteVisual? _adaptationVeilVisual;
+    private NativeGaussianBlurEffect? _blurEffect;
 
     public BackdropMaterial Material { get; private set; } = BackdropMaterial.DeepAcrylic;
     public AppThemePreference ThemePreference { get; private set; } = AppThemePreference.Dark;
@@ -265,21 +268,23 @@ public sealed partial class TransparencyEngine : IDisposable
             try
             {
                 float initialBlur = BlurPercentToStdDev(BlurIntensityPercent);
-                var blurEffect = new NativeGaussianBlurEffect
+                _hostBackdropBrush ??= _compositor.CreateHostBackdropBrush();
+                _blurEffect = new NativeGaussianBlurEffect
                 {
                     Name = "BackdropBlur",
                     BlurAmount = initialBlur,
                     Source = new CompositionEffectSourceParameter("backdrop")
                 };
-                var factory = _compositor.CreateEffectFactory(blurEffect);
-                _blurBrush = factory.CreateBrush();
-                _blurBrush.SetSourceParameter("backdrop", _compositor.CreateHostBackdropBrush());
+                _blurFactory = _compositor.CreateEffectFactory(_blurEffect);
+                _blurBrush = _blurFactory.CreateBrush();
+                _blurBrush.SetSourceParameter("backdrop", _hostBackdropBrush);
                 _blurVisual.Brush = _blurBrush;
             }
             catch (Exception ex)
             {
                 AppLogger.Instance.Warn(nameof(TransparencyEngine), $"Composition blur effect fallback: {ex.Message}");
-                _blurVisual.Brush = _compositor.CreateHostBackdropBrush();
+                _hostBackdropBrush ??= _compositor.CreateHostBackdropBrush();
+                _blurVisual.Brush = _hostBackdropBrush;
             }
 
             // Layer 2: Adaptive tint veil & primary tint layer
@@ -305,27 +310,41 @@ public sealed partial class TransparencyEngine : IDisposable
         if (_compositor == null || _blurVisual == null || _tintBrush == null || _adaptationVeilBrush == null)
             return;
 
-        // Rebuild blur effect when blur intensity changes so D2D GaussianBlur std-dev updates cleanly
+        // Rebuild blur effect cleanly, disposing previous factory/brush to prevent Composition GPU leaks
         try
         {
+            _hostBackdropBrush ??= _compositor.CreateHostBackdropBrush();
             float stdDev = BlurPercentToStdDev(BlurIntensityPercent);
             if (stdDev <= 0.5f)
             {
-                _blurVisual.Brush = _compositor.CreateHostBackdropBrush();
+                _blurVisual.Brush = _hostBackdropBrush;
+                _blurBrush?.Dispose();
+                _blurBrush = null;
+                _blurFactory?.Dispose();
+                _blurFactory = null;
+                _blurEffect?.Dispose();
+                _blurEffect = null;
             }
             else
             {
-                var blurEffect = new NativeGaussianBlurEffect
+                var nextEffect = new NativeGaussianBlurEffect
                 {
                     Name = "BackdropBlur",
                     BlurAmount = stdDev,
                     Source = new CompositionEffectSourceParameter("backdrop")
                 };
-                var factory = _compositor.CreateEffectFactory(blurEffect);
-                var nextBlurBrush = factory.CreateBrush();
-                nextBlurBrush.SetSourceParameter("backdrop", _compositor.CreateHostBackdropBrush());
-                _blurBrush = nextBlurBrush;
+                var nextFactory = _compositor.CreateEffectFactory(nextEffect);
+                var nextBlurBrush = nextFactory.CreateBrush();
+                nextBlurBrush.SetSourceParameter("backdrop", _hostBackdropBrush);
+
                 _blurVisual.Brush = nextBlurBrush;
+                _blurBrush?.Dispose();
+                _blurFactory?.Dispose();
+                _blurEffect?.Dispose();
+
+                _blurEffect = nextEffect;
+                _blurFactory = nextFactory;
+                _blurBrush = nextBlurBrush;
             }
         }
         catch
@@ -458,7 +477,13 @@ public sealed partial class TransparencyEngine : IDisposable
         _hwndSource?.RemoveHook(WndProcHook);
 
         _desktopTarget?.Dispose();
+        _blurVisual?.Dispose();
+        _tintVisual?.Dispose();
+        _adaptationVeilVisual?.Dispose();
         _blurBrush?.Dispose();
+        _blurFactory?.Dispose();
+        _blurEffect?.Dispose();
+        _hostBackdropBrush?.Dispose();
         _tintBrush?.Dispose();
         _adaptationVeilBrush?.Dispose();
         _compositor?.Dispose();
@@ -529,7 +554,7 @@ public sealed partial class TransparencyEngine : IDisposable
         public void GetSourceCount(out uint count) => count = 1;
     }
 
-    internal sealed class NativeGaussianBlurEffect : IGraphicsEffect, ICustomQueryInterface
+    internal sealed class NativeGaussianBlurEffect : IGraphicsEffect, ICustomQueryInterface, IDisposable
     {
         private static readonly Guid IID_D2D1Interop = new("2FC57384-A068-44D7-A331-30982FCF7177");
         private static readonly StrategyBasedComWrappers Wrappers = new();
@@ -552,6 +577,16 @@ public sealed partial class TransparencyEngine : IDisposable
             }
             ppv = IntPtr.Zero;
             return CustomQueryInterfaceResult.NotHandled;
+        }
+
+        public void Dispose()
+        {
+            if (_bridgePtr != IntPtr.Zero)
+            {
+                Marshal.Release(_bridgePtr);
+                _bridgePtr = IntPtr.Zero;
+            }
+            _bridge = null;
         }
     }
 

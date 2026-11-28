@@ -10,8 +10,30 @@ public sealed class SettingsService
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() }
+        Converters = { new ResilientBackdropConverter(), new JsonStringEnumConverter() }
     };
+
+    private sealed class ResilientBackdropConverter : JsonConverter<BackdropMaterial>
+    {
+        public override BackdropMaterial Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                string? raw = reader.GetString();
+                if (Enum.TryParse<BackdropMaterial>(raw, ignoreCase: true, out var parsed))
+                    return parsed;
+                return BackdropMaterial.DeepAcrylic;
+            }
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int num) && Enum.IsDefined(typeof(BackdropMaterial), num))
+            {
+                return (BackdropMaterial)num;
+            }
+            return BackdropMaterial.DeepAcrylic;
+        }
+
+        public override void Write(Utf8JsonWriter writer, BackdropMaterial value, JsonSerializerOptions options) =>
+            writer.WriteStringValue(value.ToString());
+    }
 
     private readonly string _settingsFilePath;
     private readonly object _sync = new();

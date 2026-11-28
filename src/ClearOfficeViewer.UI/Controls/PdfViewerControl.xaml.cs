@@ -21,6 +21,8 @@ public partial class PdfViewerControl : UserControl, IViewerControl
     private IReadOnlyList<PdfSearchMatch> _searchMatches = [];
     private int _activeMatchIndex = -1;
     private CancellationTokenSource? _renderCts;
+    private bool _isRenderLoopRunning;
+    private bool _renderDirty;
     private bool _disposed;
 
     public event EventHandler? StatusChanged;
@@ -37,24 +39,33 @@ public partial class PdfViewerControl : UserControl, IViewerControl
     public PdfViewerControl()
     {
         InitializeComponent();
-        SizeChanged += (_, _) =>
-        {
-            if (_pendingDefaultZoom.HasValue && MainScrollViewer.ActualWidth > 120)
-            {
-                var dz = _pendingDefaultZoom.Value;
-                _pendingDefaultZoom = null;
-                ApplyDefaultZoom(dz);
-                return;
-            }
-            QueueVisibleRender();
-        };
+        SizeChanged += OnControlSizeChanged;
     }
 
-    public async Task LoadAsync(string filePath, DefaultZoomBehavior defaultZoom)
+    private void OnControlSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_disposed) return;
+        if (_pendingDefaultZoom.HasValue && MainScrollViewer.ActualWidth > 120)
+        {
+            var dz = _pendingDefaultZoom.Value;
+            _pendingDefaultZoom = null;
+            ApplyDefaultZoom(dz);
+            return;
+        }
+        QueueVisibleRender(cancelExisting: false);
+    }
+
+    public async Task LoadAsync(string filePath, DefaultZoomBehavior defaultZoom, CancellationToken ct = default)
     {
         UnloadSession();
 
-        _session = await PdfDocumentSession.OpenAsync(filePath);
+        _session = await PdfDocumentSession.OpenAsync(filePath, password: null, ct);
+        if (_disposed || ct.IsCancellationRequested)
+        {
+            UnloadSession();
+            return;
+        }
+
         _currentPageNumber = 1;
         _selectedText = string.Empty;
         _searchMatches = [];
@@ -299,28 +310,55 @@ public partial class PdfViewerControl : UserControl, IViewerControl
             RedrawOverlays(slot);
         }
 
-        QueueVisibleRender();
+        QueueVisibleRender(cancelExisting: true);
     }
 
-    private void QueueVisibleRender()
+    private void QueueVisibleRender(bool cancelExisting = false)
     {
         if (_session == null || _pageSlots.Count == 0 || _disposed)
             return;
 
-        _renderCts?.Cancel();
-        _renderCts = new CancellationTokenSource();
-        var ct = _renderCts.Token;
+        if (cancelExisting)
+        {
+            _renderCts?.Cancel();
+            _renderCts?.Dispose();
+            _renderCts = null;
+            _isRenderLoopRunning = false;
+        }
 
-        _ = RenderVisiblePagesAsync(ct);
+        _renderDirty = true;
+        if (_isRenderLoopRunning)
+            return;
+
+        _renderCts ??= new CancellationTokenSource();
+        var ct = _renderCts.Token;
+        _isRenderLoopRunning = true;
+        _ = RunRenderLoopAsync(ct);
+    }
+
+    private async Task RunRenderLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (_renderDirty && !ct.IsCancellationRequested && !_disposed && _session != null)
+            {
+                _renderDirty = false;
+                await RenderVisiblePagesAsync(ct);
+            }
+        }
+        finally
+        {
+            _isRenderLoopRunning = false;
+        }
     }
 
     private async Task RenderVisiblePagesAsync(CancellationToken ct)
     {
-        if (_session == null) return;
+        if (_session == null || _disposed) return;
 
         // Allow layout pass to settle
         await System.Windows.Threading.Dispatcher.Yield();
-        if (ct.IsCancellationRequested || _session == null) return;
+        if (ct.IsCancellationRequested || _session == null || _disposed) return;
 
         double viewportTop = MainScrollViewer.VerticalOffset;
         double viewportHeight = MainScrollViewer.ViewportHeight > 0 ? MainScrollViewer.ViewportHeight : 700;
@@ -376,10 +414,13 @@ public partial class PdfViewerControl : UserControl, IViewerControl
             }
         }
 
-        double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        double dpiScale = PresentationSource.FromVisual(this) != null
+            ? VisualTreeHelper.GetDpi(this).DpiScaleX
+            : 1.0;
+
         foreach (int idx in visible)
         {
-            if (ct.IsCancellationRequested || _session == null) return;
+            if (ct.IsCancellationRequested || _session == null || _disposed) return;
             var slot = _pageSlots[idx];
             if (Math.Abs(slot.RenderedZoom - _zoom) < 0.01 && slot.Image.Source != null)
                 continue;
@@ -391,13 +432,17 @@ public partial class PdfViewerControl : UserControl, IViewerControl
             {
                 uint targetPx = (uint)Math.Clamp(Math.Round(slot.Meta.WidthDip * _zoom * dpiScale), 240, 2800);
                 var bmp = await _session.RenderPageAsync(idx, targetPx, ct);
-                if (!ct.IsCancellationRequested)
+                if (!ct.IsCancellationRequested && !_disposed)
                 {
                     slot.Image.Source = bmp;
                     slot.RenderedZoom = _zoom;
                 }
             }
             catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (ObjectDisposedException)
             {
                 break;
             }
@@ -561,19 +606,43 @@ public partial class PdfViewerControl : UserControl, IViewerControl
 
     private void CopySelectedText()
     {
-        if (!string.IsNullOrEmpty(_selectedText))
-            Clipboard.SetText(_selectedText);
+        if (string.IsNullOrEmpty(_selectedText))
+            return;
+
+        try
+        {
+            Clipboard.SetDataObject(_selectedText, true);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Warn(nameof(PdfViewerControl), $"Clipboard copy failed: {ex.Message}");
+        }
     }
 
     private void RaiseStatusChanged() => StatusChanged?.Invoke(this, EventArgs.Empty);
 
     private void UnloadSession()
     {
+        _renderDirty = false;
+        _isRenderLoopRunning = false;
         _renderCts?.Cancel();
         _renderCts?.Dispose();
         _renderCts = null;
+        _renderingPages.Clear();
+
+        foreach (var slot in _pageSlots)
+        {
+            if (slot.Overlay.IsMouseCaptured)
+                slot.Overlay.ReleaseMouseCapture();
+            slot.Image.Source = null;
+            slot.Overlay.Children.Clear();
+        }
+
         _session?.Dispose();
         _session = null;
+        _searchMatches = [];
+        _activeMatchIndex = -1;
+        _selectedText = string.Empty;
         _pageSlots.Clear();
         PagesPanel.Children.Clear();
     }
@@ -582,6 +651,7 @@ public partial class PdfViewerControl : UserControl, IViewerControl
     {
         if (_disposed) return;
         _disposed = true;
+        SizeChanged -= OnControlSizeChanged;
         UnloadSession();
     }
 

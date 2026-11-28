@@ -29,10 +29,22 @@ public partial class HtmlViewerControl : UserControl, IViewerControl
     public HtmlViewerControl()
     {
         InitializeComponent();
-        WebView.ZoomFactorChanged += (_, _) => RaiseStatusChanged();
+        WebView.ZoomFactorChanged += OnWebViewZoomFactorChanged;
     }
 
-    public async Task LoadAsync(string filePath)
+    private void OnWebViewZoomFactorChanged(object? sender, EventArgs e) => RaiseStatusChanged();
+
+    private void OnDocumentTitleChanged(object? sender, object args)
+    {
+        if (_disposed || WebView.CoreWebView2 == null) return;
+        if (!string.IsNullOrWhiteSpace(WebView.CoreWebView2.DocumentTitle))
+        {
+            _pageTitle = WebView.CoreWebView2.DocumentTitle;
+            RaiseStatusChanged();
+        }
+    }
+
+    public async Task LoadAsync(string filePath, CancellationToken ct = default)
     {
         if (!File.Exists(filePath))
             throw new FileNotFoundException("HTML file not found.", filePath);
@@ -49,22 +61,19 @@ public partial class HtmlViewerControl : UserControl, IViewerControl
             Directory.CreateDirectory(userDataDir);
 
             var env = await CoreWebView2Environment.CreateAsync(userDataFolder: userDataDir);
+            if (_disposed || ct.IsCancellationRequested) return;
+
             await WebView.EnsureCoreWebView2Async(env);
+            if (_disposed || ct.IsCancellationRequested || WebView.CoreWebView2 == null) return;
 
             WebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
             WebView.CoreWebView2.Settings.IsScriptEnabled = true;
             WebView.CoreWebView2.Settings.AreDevToolsEnabled = true;
-            WebView.CoreWebView2.DocumentTitleChanged += (_, _) =>
-            {
-                if (!string.IsNullOrWhiteSpace(WebView.CoreWebView2.DocumentTitle))
-                {
-                    _pageTitle = WebView.CoreWebView2.DocumentTitle;
-                    RaiseStatusChanged();
-                }
-            };
+            WebView.CoreWebView2.DocumentTitleChanged += OnDocumentTitleChanged;
             _initialized = true;
         }
 
+        if (_disposed || ct.IsCancellationRequested) return;
         WebView.Source = new Uri(_loadedPath);
         RaiseStatusChanged();
     }
@@ -134,6 +143,11 @@ public partial class HtmlViewerControl : UserControl, IViewerControl
         _disposed = true;
         try
         {
+            WebView.ZoomFactorChanged -= OnWebViewZoomFactorChanged;
+            if (_initialized && WebView.CoreWebView2 != null)
+            {
+                WebView.CoreWebView2.DocumentTitleChanged -= OnDocumentTitleChanged;
+            }
             WebView.Dispose();
         }
         catch (Exception ex)

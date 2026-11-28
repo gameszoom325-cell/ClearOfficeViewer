@@ -17,6 +17,7 @@ public partial class DocumentViewerControl : UserControl, IViewerControl
     private int _currentPage = 1;
     private readonly List<TextRange> _searchHits = [];
     private int _activeHitIndex = -1;
+    private bool _disposed;
 
     public event EventHandler? StatusChanged;
 
@@ -32,20 +33,25 @@ public partial class DocumentViewerControl : UserControl, IViewerControl
     public DocumentViewerControl()
     {
         InitializeComponent();
-        SizeChanged += (_, _) =>
-        {
-            if (_pendingDefaultZoom.HasValue && OuterScrollViewer.ActualWidth > 120)
-            {
-                var dz = _pendingDefaultZoom.Value;
-                _pendingDefaultZoom = null;
-                ApplyDefaultZoom(dz);
-            }
-        };
+        SizeChanged += OnControlSizeChanged;
     }
 
-    public async Task LoadAsync(string filePath, DefaultZoomBehavior defaultZoom)
+    private void OnControlSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        var parsed = await Task.Run(() => DocumentLoader.Load(filePath));
+        if (_disposed) return;
+        if (_pendingDefaultZoom.HasValue && OuterScrollViewer.ActualWidth > 120)
+        {
+            var dz = _pendingDefaultZoom.Value;
+            _pendingDefaultZoom = null;
+            ApplyDefaultZoom(dz);
+        }
+    }
+
+    public async Task LoadAsync(string filePath, DefaultZoomBehavior defaultZoom, CancellationToken ct = default)
+    {
+        var parsed = await Task.Run(() => DocumentLoader.Load(filePath), ct);
+        if (_disposed || ct.IsCancellationRequested)
+            return;
         _parsed = parsed;
 
         var flow = DocumentLoader.ToFlowDocument(parsed, forPrint: false);
@@ -277,7 +283,11 @@ public partial class DocumentViewerControl : UserControl, IViewerControl
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        SizeChanged -= OnControlSizeChanged;
         _parsed = null;
         _searchHits.Clear();
+        DocRichTextBox.Document = new FlowDocument();
     }
 }

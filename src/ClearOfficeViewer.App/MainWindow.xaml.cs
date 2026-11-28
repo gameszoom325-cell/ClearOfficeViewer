@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private readonly TransparencyEngine _transparencyEngine;
     private IViewerControl? _activeViewer;
     private string? _activeFilePath;
+    private CancellationTokenSource? _openFileCts;
     private bool _initializingControls = true;
 
     public MainWindow(SettingsService settings, string? initialFile = null)
@@ -63,8 +64,10 @@ public partial class MainWindow : Window
 
     private void MainWindow_StateChanged(object? sender, EventArgs e)
     {
-        MaximizeButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
-        RootGrid.Margin = WindowState == WindowState.Maximized ? new Thickness(7) : new Thickness(0);
+        bool isMax = WindowState == WindowState.Maximized;
+        MaximizeButton.Content = isMax ? "\uE923" : "\uE922";
+        RootGrid.Margin = isMax ? new Thickness(7) : new Thickness(0);
+        GlassSpecularRim.CornerRadius = isMax ? new CornerRadius(0) : new CornerRadius(8);
     }
 
     private void ApplyBackdropAndSurface()
@@ -86,6 +89,8 @@ public partial class MainWindow : Window
             CommandBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(32, 255, 255, 255));
             StatusBarBorder.Background = new SolidColorBrush(Color.FromArgb(20, 8, 12, 18));
             StatusBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255));
+            ActiveDocSidebarBox.Background = new SolidColorBrush(Color.FromArgb(26, 255, 255, 255));
+            ActiveDocSidebarBox.BorderBrush = new SolidColorBrush(Color.FromArgb(42, 255, 255, 255));
             GlassSpecularRim.BorderBrush = new SolidColorBrush(Color.FromArgb(isCompositionGlass ? (byte)58 : (byte)32, 255, 255, 255));
             ContentSurfaceBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(isCompositionGlass ? (byte)40 : (byte)28, 255, 255, 255));
             ContentSurfaceBorder.Background = new SolidColorBrush(
@@ -98,6 +103,8 @@ public partial class MainWindow : Window
             CommandBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(24, 0, 0, 0));
             StatusBarBorder.Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255));
             StatusBarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(24, 0, 0, 0));
+            ActiveDocSidebarBox.Background = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255));
+            ActiveDocSidebarBox.BorderBrush = new SolidColorBrush(Color.FromArgb(36, 0, 0, 0));
             GlassSpecularRim.BorderBrush = new SolidColorBrush(Color.FromArgb(72, 255, 255, 255));
             ContentSurfaceBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(34, 0, 0, 0));
             ContentSurfaceBorder.Background = new SolidColorBrush(
@@ -161,57 +168,68 @@ public partial class MainWindow : Window
             return;
         }
 
+        _openFileCts?.Cancel();
+        _openFileCts?.Dispose();
+        _openFileCts = new CancellationTokenSource();
+        var ct = _openFileCts.Token;
+
         LoadingMessageText.Text = $"Opening {Path.GetFileName(fullPath)}...";
         LoadingOverlay.Visibility = Visibility.Visible;
 
+        IViewerControl? pendingViewer = null;
         try
         {
             DisposeActiveViewer();
 
-            IViewerControl newViewer;
             switch (kind)
             {
                 case SupportedFileKind.Pdf:
                 {
                     var pdfCtrl = new PdfViewerControl();
-                    await pdfCtrl.LoadAsync(fullPath, _settings.Current.DefaultZoom);
-                    newViewer = pdfCtrl;
+                    pendingViewer = pdfCtrl;
+                    await pdfCtrl.LoadAsync(fullPath, _settings.Current.DefaultZoom, ct);
                     break;
                 }
                 case SupportedFileKind.WordLegacy:
                 case SupportedFileKind.WordOpenXml:
                 {
                     var docCtrl = new DocumentViewerControl();
-                    await docCtrl.LoadAsync(fullPath, _settings.Current.DefaultZoom);
-                    newViewer = docCtrl;
+                    pendingViewer = docCtrl;
+                    await docCtrl.LoadAsync(fullPath, _settings.Current.DefaultZoom, ct);
                     break;
                 }
                 case SupportedFileKind.PowerPointLegacy:
                 case SupportedFileKind.PowerPointOpenXml:
                 {
                     var pptCtrl = new PresentationViewerControl();
-                    await pptCtrl.LoadAsync(fullPath, _settings.Current.DefaultZoom);
-                    newViewer = pptCtrl;
+                    pendingViewer = pptCtrl;
+                    await pptCtrl.LoadAsync(fullPath, _settings.Current.DefaultZoom, ct);
                     break;
                 }
                 case SupportedFileKind.Html:
                 {
                     var htmlCtrl = new HtmlViewerControl();
+                    pendingViewer = htmlCtrl;
                     ViewerHost.Content = htmlCtrl;
                     ShowContentSection("Viewer");
-                    await htmlCtrl.LoadAsync(fullPath);
-                    newViewer = htmlCtrl;
+                    await htmlCtrl.LoadAsync(fullPath, ct);
                     break;
                 }
                 default:
                     throw new NotSupportedException($"Format '{kind}' is not supported.");
             }
 
-            _activeViewer = newViewer;
+            if (ct.IsCancellationRequested)
+            {
+                pendingViewer?.Dispose();
+                return;
+            }
+
+            _activeViewer = pendingViewer;
             _activeViewer.StatusChanged += ActiveViewer_StatusChanged;
             _activeFilePath = fullPath;
 
-            ViewerHost.Content = (UIElement)newViewer;
+            ViewerHost.Content = (UIElement)_activeViewer;
             ShowContentSection("Viewer");
 
             _settings.RecordFileOpened(fullPath);
@@ -221,8 +239,18 @@ public partial class MainWindow : Window
 
             AppLogger.Instance.Info(nameof(MainWindow), $"Opened '{fullPath}' ({kind}).");
         }
+        catch (OperationCanceledException)
+        {
+            pendingViewer?.Dispose();
+            if (_activeViewer == null)
+            {
+                ViewerHost.Content = null;
+                ClearDocumentChrome();
+            }
+        }
         catch (Exception ex)
         {
+            pendingViewer?.Dispose();
             DisposeActiveViewer();
             ClearDocumentChrome();
             AppLogger.Instance.Error(nameof(MainWindow), $"Failed to open '{fullPath}'.", ex);
@@ -409,8 +437,19 @@ public partial class MainWindow : Window
     private void TopRecent_Click(object sender, RoutedEventArgs e) => SelectNavTag("Recent");
     private void TopSettings_Click(object sender, RoutedEventArgs e) => SelectNavTag("Settings");
 
+    private void ReturnToActiveDocument_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeViewer != null)
+        {
+            ShowContentSection("Viewer");
+        }
+    }
+
     private void CloseDocument_Click(object sender, RoutedEventArgs e)
     {
+        _openFileCts?.Cancel();
+        _openFileCts?.Dispose();
+        _openFileCts = null;
         DisposeActiveViewer();
         ClearDocumentChrome();
         SelectNavTag("Home");
@@ -703,6 +742,9 @@ public partial class MainWindow : Window
 
     private void Window_Closed(object? sender, EventArgs e)
     {
+        _openFileCts?.Cancel();
+        _openFileCts?.Dispose();
+        _openFileCts = null;
         DisposeActiveViewer();
         _transparencyEngine.Dispose();
     }
